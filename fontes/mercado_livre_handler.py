@@ -1,11 +1,13 @@
-from df_handler import DfHandler
+from fontes.df_handler import DfHandler
 from environments import * 
 import traceback
 from unidecode import unidecode
+from openpyxl import load_workbook 
+from openpyxl.utils.dataframe import dataframe_to_rows
 
 
 #Data Frame de dados de entrada Mercado Livre
-class DfMlInput(DfHandler):
+class DFMLInput(DfHandler):
     def __init__(self) -> None:
         super().__init__(file_name=TABELA_ML, 
                         sheet_name=SHEET_ANUNCIOS,
@@ -25,12 +27,12 @@ class DfMlInput(DfHandler):
             0.165 if row["LISTING_TYPE"] == "Premium" else "-", axis=1)
 
 #Data Frame de dados de saida Mercado Livre
-class DfMlOutput(DfHandler):
-
+class DFMLOutput(DfHandler):
     def __init__(self) -> None:
         super().__init__(file_name=TABELA_CONTROLE_PRECOS, 
                         sheet_name=SHEET_CONTROLE_PRECOS,
                         header_lines=range(0, 1))
+        self.drop_duplicates()
     
     def remove_duplicates(self):
         self.drop_duplicates(subset='Código ML', inplace=True)
@@ -43,7 +45,7 @@ class MLHandler():
         self.df_i = df_input
         self.df_o = df_output
 
-    def atualiza_output(self):
+    def update_output(self):
         for index, row in self.df_i.iterrows():
             item_id = row['ITEM_ID']
             matching_rows = self.df_o[self.df_o['Código ML'] == item_id]
@@ -97,6 +99,17 @@ class MLHandler():
         else:
             'Erro'
     
+    def load_output_to_workbook(self):
+        # df_values is the DataFrame with the data to save
+        wb = load_workbook(TABELA_CONTROLE_PRECOS)
+        sheet = wb.active
+        df_columns = self.df_o.shape[1]
+        # I use 2 with enumerate to save the header column of the excel sheet
+        
+        for r, row in enumerate(dataframe_to_rows(self.df_o, index=False, header=False), 2):
+            for c in range(0, df_columns):
+                sheet.cell(row=r, column=c + 1).value = row[c]
+        wb.save(TABELA_CONTROLE_PRECOS)
 
 
 
