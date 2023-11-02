@@ -5,17 +5,28 @@
 
 import pandas as pd
 from environments import * 
-import unidecode
+from unidecode import unidecode
+from openpyxl import load_workbook 
+from openpyxl.utils.dataframe import dataframe_to_rows
+import numpy as np
+import traceback
+from df_handler import DfHandler
+
 
 def main():
-    insere_dados_planilha()
+    update_dados_planilha()
 
 
-def insere_dados_planilha():
-    df_input = pd.read_excel(PRECO_TAXA_FIXA, sheet_name=SHEET_ANUNCIOS)
-    df_output = pd.read_excel(TABELA_CONTROLE_PRECOS, sheet_name=SHEET_CONTROLE_PRECOS)
-
+def update_dados_planilha():
+    df_input = DfHandler(file_name=TABELA_ML, sheet_name=SHEET_ANUNCIOS)
+    df_output = DfHandler(file_name=TABELA_CONTROLE_PRECOS, sheet_name=SHEET_CONTROLE_PRECOS)
+    
+    df_input.remove_sub_header()
+    df_input.keeps_rows('VARIATION_ID', '')
+    
     for index, row in df_input.iterrows():
+        #se linha tem VARIATION_ID ignorar
+
         item_id = row['ITEM_ID']
         matching_rows = df_output[df_output['Código ML'] == item_id]
         if len(matching_rows) == 1:
@@ -28,6 +39,18 @@ def insere_dados_planilha():
         else:
             # TODO: Exclui linha repetida 
             pass
+    print(df_output.to_string)
+
+    
+    # df_values is the DataFrame with the data to save
+    wb = load_workbook(TABELA_CONTROLE_PRECOS)
+    sheet = wb.active
+    df_columns = df_output.shape[1]
+    # I use 2 with enumerate to save the header column of the excel sheet
+    for r, row in enumerate(dataframe_to_rows(df_output, index=False, header=False), 2):
+        for c in range(0, df_columns):
+            sheet.cell(row=r, column=c + 1).value = row[c]
+    wb.save(TABELA_CONTROLE_PRECOS)
 
 
 def update_row(index, row, df):
@@ -39,7 +62,7 @@ def update_row(index, row, df):
     df.at[index, 'Taxa de Comissão Fixa'] = corrige_taxa_fixa(preco) 
 
     df.at[index, 'Frete Incluso'] = corrige_frete_incluso(row['SHIPPING_METHOD_MARKETPLACE'])
-    df.at[index, 'SKU'] = row['Preço sem promoção']
+    df.at[index, 'Preço sem promoção'] = preco
 
 
 def corrige_taxa_fixa(preco):
@@ -60,9 +83,8 @@ def corrige_frete_incluso(tipo_entrega):
     """
     try:
         tipo_entrega = unidecode(tipo_entrega.strip()).upper()
-    
-    except Exception as e:
-        print(e)
+    except:
+        print(traceback.print_exc(limit=1))
         
 
     if tipo_entrega in ['MERCADO ENVIOS GRATIS']:
@@ -71,6 +93,7 @@ def corrige_frete_incluso(tipo_entrega):
         return 'Não'
     else:
         'Erro'
+
 
 if __name__ == '__main__':
     main()
