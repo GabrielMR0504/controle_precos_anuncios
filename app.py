@@ -10,7 +10,7 @@ from openpyxl import load_workbook
 from openpyxl.utils.dataframe import dataframe_to_rows
 import numpy as np
 import traceback
-from df_handler import DfHandler
+from fontes.mercado_livre_handler import DfMlInput, DfMlOutput, MLHandler
 
 
 def main():
@@ -18,14 +18,15 @@ def main():
 
 
 def update_dados_planilha():
-    df_input = DfHandler(file_name=TABELA_ML, sheet_name=SHEET_ANUNCIOS)
-    df_output = DfHandler(file_name=TABELA_CONTROLE_PRECOS, sheet_name=SHEET_CONTROLE_PRECOS)
+    df_input = DfMlInput()
+    df_output = DfMlOutput()
     
     df_input.remove_sub_header()
-    df_input.keeps_rows('VARIATION_ID', '')
+    df_input.remove_variations()
     
+    df_output.display_df()
+
     for index, row in df_input.iterrows():
-        #se linha tem VARIATION_ID ignorar
 
         item_id = row['ITEM_ID']
         matching_rows = df_output[df_output['Código ML'] == item_id]
