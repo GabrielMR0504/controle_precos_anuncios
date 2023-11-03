@@ -1,17 +1,18 @@
-from fontes.df_handler import DfHandler
+from src.df_handler import DfHandler
 from environments import * 
 import traceback
 from unidecode import unidecode
 from openpyxl import load_workbook 
 from openpyxl.utils.dataframe import dataframe_to_rows
-
+import pandas as pd
 
 #Data Frame de dados de entrada Mercado Livre
 class DFMLInput(DfHandler):
     def __init__(self) -> None:
-        super().__init__(file_name=TABELA_ML, 
+        super().__init__(file_name=FILE_ML, 
                         sheet_name=SHEET_ANUNCIOS,
-                        header_lines=range(0, 4))
+                        header_lines=range(0, 4),
+                        df=None)
         self.remove_sub_header()
         self.remove_variations()
         self.calc_comissao()
@@ -28,11 +29,22 @@ class DFMLInput(DfHandler):
 
 #Data Frame de dados de saida Mercado Livre
 class DFMLOutput(DfHandler):
-    def __init__(self) -> None:
-        super().__init__(file_name=TABELA_CONTROLE_PRECOS, 
-                        sheet_name=SHEET_CONTROLE_PRECOS,
-                        header_lines=range(0, 1))
-        self.drop_duplicates()
+    def __init__(self, df=None) -> None:
+        if df is not None:
+            super().__init__(file_name=None,
+                            sheet_name=None,
+                            header_lines=None,
+                            df=df)
+        else:            
+            super().__init__(file_name=FILE_CONTROLE_PRECOS, 
+                            sheet_name=SHEET_CONTROLE_PRECOS,
+                            header_lines=range(0, 1),
+                            df=None)
+            self.remove_duplicates()
+
+    def add_new_line(self, data_dict):
+        new_line = DFMLOutput(data_dict)
+        self = DFMLOutput(pd.concat([self, new_line], ignore_index=True))
     
     def remove_duplicates(self):
         self.drop_duplicates(subset='Código ML', inplace=True)
@@ -54,11 +66,14 @@ class MLHandler():
                 self.update_row(matching_row_index, row, self.df_o)
 
             elif len(matching_rows) < 1:
-                # TODO: Adiciona linha nova na tabela
-                pass
+                self.add_row(row, self.df_o)
+                
             else:
-                # TODO: Exclui linha repetida 
-                pass
+                try:
+                    raise Exception("Existe um id duplicado na tabela de saída")
+                except:
+                    print(traceback.print_exc(limit=1))
+            
         self.df_o.display_df()
 
     def update_row(self, index, row, df):
@@ -68,7 +83,6 @@ class MLHandler():
         df.at[index, 'Taxa de Comissão (%)'] = row['FEE_PER_SALE_MARKETPLACE']
         preco = row['MARKETPLACE_PRICE']     
         df.at[index, 'Taxa de Comissão Fixa'] = self.corrige_taxa_fixa(preco) 
-
         df.at[index, 'Frete Incluso'] = self.corrige_frete_incluso(row['SHIPPING_METHOD_MARKETPLACE'])
         df.at[index, 'Preço sem promoção'] = preco
 
@@ -82,6 +96,19 @@ class MLHandler():
         else:
             return 0.00
     
+    def add_row(self, row, df : DfHandler) -> None:
+        new_line = pd.DataFrame({'Código ML': [row['ITEM_ID']]})
+        df = DFMLOutput(pd.concat([df, new_line], copy=False, ignore_index=True))
+        # df.add_new_line()
+        new_index = len(df) - 1
+        print(new_index)
+        self.df_o = df
+
+
+        # df.add_line_empty()
+        # df.at[new_index, 'Código ML'] = row['ITEM_ID']
+        # print(new_index)
+        self.update_row(new_index, row, self.df_o)
     def corrige_frete_incluso(self, tipo_entrega):
         """
         Responsável por determinar se o frete está incluso ou não.
@@ -100,16 +127,16 @@ class MLHandler():
             'Erro'
     
     def load_output_to_workbook(self):
-        # df_values is the DataFrame with the data to save
-        wb = load_workbook(TABELA_CONTROLE_PRECOS)
+        wb = load_workbook(FILE_CONTROLE_PRECOS)
         sheet = wb.active
         df_columns = self.df_o.shape[1]
-        # I use 2 with enumerate to save the header column of the excel sheet
         
         for r, row in enumerate(dataframe_to_rows(self.df_o, index=False, header=False), 2):
             for c in range(0, df_columns):
                 sheet.cell(row=r, column=c + 1).value = row[c]
-        wb.save(TABELA_CONTROLE_PRECOS)
+        wb.save(FILE_CONTROLE_PRECOS)
+
+        print(f'Arquivo {FILE_CONTROLE_PRECOS} atualizado com sucesso!')
 
 
 

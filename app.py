@@ -3,7 +3,7 @@
 # Puxar informações da planilha do mercado livre
 # Atualizar planilha de saida com os dados
 
-from fontes.mercado_livre_handler import DFMLInput, DFMLOutput, MLHandler
+from src.mercado_livre_handler import DFMLInput, DFMLOutput, MLHandler
 
 def main():
     update_dados_planilha()
