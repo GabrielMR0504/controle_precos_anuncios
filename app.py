@@ -13,8 +13,6 @@ def update_dados_planilha():
     df_input = DFMLInput()
     df_output = DFMLOutput()
 
-    print(df_input.to_string)
-
     ml_handler = MLHandler(df_input, df_output)
     ml_handler.update_output()
     ml_handler.load_output_to_workbook()

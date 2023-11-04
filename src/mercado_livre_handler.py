@@ -2,10 +2,10 @@ from src.df_handler import DfHandler
 from environments import * 
 import traceback
 from unidecode import unidecode
-from openpyxl import load_workbook 
-from openpyxl.utils.dataframe import dataframe_to_rows
+from openpyxl import load_workbook
+from openpyxl.styles import Font
 import pandas as pd
-
+from datetime import date
 #Data Frame de dados de entrada Mercado Livre
 class DFMLInput(DfHandler):
     def __init__(self) -> None:
@@ -63,10 +63,10 @@ class MLHandler():
             matching_rows = self.df_o[self.df_o['Código ML'] == item_id]
             if len(matching_rows) == 1:
                 matching_row_index  = matching_rows.index[0]   
-                self.update_row(matching_row_index, row, self.df_o)
+                self.update_row(matching_row_index, row)
 
             elif len(matching_rows) < 1:
-                self.add_row(row, self.df_o)
+                self.add_row(row)
                 
             else:
                 try:
@@ -74,17 +74,16 @@ class MLHandler():
                 except:
                     print(traceback.print_exc(limit=1))
             
-        self.df_o.display_df()
-
-    def update_row(self, index, row, df):
-        df.at[index, 'SKU'] = row['SKU']
-        df.at[index, 'Título'] = row['TITLE']
-        df.at[index, 'Status'] = row['STATUS']
-        df.at[index, 'Taxa de Comissão (%)'] = row['FEE_PER_SALE_MARKETPLACE']
+    def update_row(self, index, row):
+        self.df_o.at[index, 'SKU'] = row['SKU']
+        self.df_o.at[index, 'Título'] = row['TITLE']
+        self.df_o.at[index, 'Status'] = row['STATUS']
+        self.df_o.at[index, 'Taxa de Comissão (%)'] = row['FEE_PER_SALE_MARKETPLACE']
         preco = row['MARKETPLACE_PRICE']     
-        df.at[index, 'Taxa de Comissão Fixa'] = self.corrige_taxa_fixa(preco) 
-        df.at[index, 'Frete Incluso'] = self.corrige_frete_incluso(row['SHIPPING_METHOD_MARKETPLACE'])
-        df.at[index, 'Preço sem promoção'] = preco
+        self.df_o.at[index, 'Taxa de Comissão Fixa'] = self.corrige_taxa_fixa(preco) 
+        self.df_o.at[index, 'Frete Incluso'] = self.corrige_frete_incluso(row['SHIPPING_METHOD_MARKETPLACE'])
+        self.df_o.at[index, 'Preço sem promoção'] = preco
+        self.df_o.at[index, 'Data Atualização'] = str(date.today().strftime('%d/%m/%Y'))
 
     def corrige_taxa_fixa(self, preco):
         """
@@ -96,19 +95,11 @@ class MLHandler():
         else:
             return 0.00
     
-    def add_row(self, row, df : DfHandler) -> None:
+    def add_row(self, row) -> None:
         new_line = pd.DataFrame({'Código ML': [row['ITEM_ID']]})
-        df = DFMLOutput(pd.concat([df, new_line], copy=False, ignore_index=True))
-        # df.add_new_line()
-        new_index = len(df) - 1
-        print(new_index)
-        self.df_o = df
-
-
-        # df.add_line_empty()
-        # df.at[new_index, 'Código ML'] = row['ITEM_ID']
-        # print(new_index)
-        self.update_row(new_index, row, self.df_o)
+        self.df_o = DFMLOutput(pd.concat([self.df_o, new_line], copy=False, ignore_index=True))
+        new_index = len(self.df_o) - 1        
+        self.update_row(new_index, row)
     def corrige_frete_incluso(self, tipo_entrega):
         """
         Responsável por determinar se o frete está incluso ou não.
@@ -129,14 +120,30 @@ class MLHandler():
     def load_output_to_workbook(self):
         wb = load_workbook(FILE_CONTROLE_PRECOS)
         sheet = wb.active
-        df_columns = self.df_o.shape[1]
-        
-        for r, row in enumerate(dataframe_to_rows(self.df_o, index=False, header=False), 2):
-            for c in range(0, df_columns):
-                sheet.cell(row=r, column=c + 1).value = row[c]
+
+        for c, (label, content)  in enumerate(self.df_o.items(), 1):
+            for r, value in content.items():
+                cell = sheet.cell(row=r+2, column=c)
+                cell.value = value
+                cell.font = Font(size=14)
+                if label == 'Taxa de Comissão (%)':
+                    cell.number_format = '0.00%'
+
         wb.save(FILE_CONTROLE_PRECOS)
 
+
+
+
         print(f'Arquivo {FILE_CONTROLE_PRECOS} atualizado com sucesso!')
+
+    # def format_table(self, sheet):
+    #     target_column_name = 'Data Atualização'
+    #     target_column_index = self.df_o.columns.get_loc(target_column_name) + 1
+
+    #     for cell in sheet.iter_cols(min_col=target_column_index, max_col=target_column_index):
+    #         for c in cell:
+    #             c.number_format = 'DD/MM/YYYY'
+    #     return sheet
 
 
 
